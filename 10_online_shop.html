@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<!-- 10_online_shop.html (HTML + CSS + JavaScript)
+     A one-file online shop you can open on any phone or computer.
+     Customers pick products, the cart totals up, and the order is sent to
+     YOUR WhatsApp number. No server needed. Edit PRODUCTS and WHATSAPP below. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Online Shop</title>
+<style>
+  :root { --green:#1b7f4b; --dark:#12372a; --light:#f4f8f5; --line:#d9e4dd; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: Arial, sans-serif; background: var(--light); color:#222; }
+  header { background: var(--dark); color:#fff; padding:16px; text-align:center; }
+  header h1 { margin:0; font-size:22px; }
+  header p { margin:4px 0 0; font-size:14px; opacity:.85; }
+  .wrap { max-width:1000px; margin:auto; padding:16px; display:grid; gap:16px;
+          grid-template-columns: 2fr 1fr; }
+  @media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } }
+  .search { width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; margin-bottom:12px; }
+  .grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px; text-align:center; }
+  .emoji { font-size:40px; }
+  .card h3 { margin:6px 0; font-size:15px; }
+  .price { color: var(--green); font-weight:bold; }
+  button { background: var(--green); color:#fff; border:0; padding:8px 12px; border-radius:8px;
+           cursor:pointer; font-size:14px; }
+  button.small { padding:2px 8px; background:#999; }
+  button.big { width:100%; padding:12px; font-size:16px; margin-top:10px; }
+  .cart { background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px; height:fit-content; }
+  .row { display:flex; justify-content:space-between; align-items:center; padding:6px 0;
+         border-bottom:1px solid var(--line); font-size:14px; }
+  .total { font-size:18px; font-weight:bold; margin-top:10px; display:flex; justify-content:space-between; }
+  input.field { width:100%; padding:9px; margin-top:8px; border:1px solid var(--line); border-radius:8px; }
+  .empty { color:#777; font-size:14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="shopName"></h1>
+  <p>Order here and we deliver. Pay on delivery or by mobile money.</p>
+</header>
+
+<div class="wrap">
+  <section>
+    <input id="search" class="search" placeholder="Search products...">
+    <div id="products" class="grid"></div>
+  </section>
+
+  <aside class="cart">
+    <h2 style="margin-top:0">Your cart</h2>
+    <div id="cartItems"></div>
+    <div class="total"><span>Total</span><span id="total">UGX 0</span></div>
+    <input id="custName" class="field" placeholder="Your name">
+    <input id="custPhone" class="field" placeholder="Your phone number">
+    <input id="custPlace" class="field" placeholder="Delivery location">
+    <button class="big" onclick="sendOrder()">Send order on WhatsApp</button>
+    <button class="big" style="background:#a33" onclick="clearCart()">Clear cart</button>
+  </aside>
+</div>
+
+<script>
+// ====== EDIT THESE ======
+const SHOP_NAME = "Mukono Fresh Market";
+const WHATSAPP  = "256700000000";   // your number, country code first, no + sign
+const DELIVERY_FEE = 3000;          // UGX, set 0 for free delivery
+const PRODUCTS = [
+  { id: 1, name: "Matooke (bunch)", price: 25000, emoji: "🍌" },
+  { id: 2, name: "Tomatoes (kg)",   price: 4000,  emoji: "🍅" },
+  { id: 3, name: "Rice 5kg",        price: 22000, emoji: "🍚" },
+  { id: 4, name: "Cooking oil 3L",  price: 28000, emoji: "🛢️" },
+  { id: 5, name: "Eggs (tray)",     price: 11000, emoji: "🥚" },
+  { id: 6, name: "Sugar 2kg",       price: 9000,  emoji: "🍬" },
+  { id: 7, name: "Passion fruits",  price: 6000,  emoji: "🍈" },
+  { id: 8, name: "Fresh milk 1L",   price: 3000,  emoji: "🥛" }
+];
+// ========================
+
+let cart = {};   // productId -> quantity
+
+const fmt = n => "UGX " + Math.round(n).toLocaleString("en-US");
+
+function renderProducts() {
+  const term = document.getElementById("search").value.toLowerCase();
+  const list = PRODUCTS.filter(p => p.name.toLowerCase().includes(term));
+  document.getElementById("products").innerHTML = list.map(p => `
+    <div class="card">
+      <div class="emoji">${p.emoji}</div>
+      <h3>${p.name}</h3>
+      <div class="price">${fmt(p.price)}</div>
+      <button onclick="addToCart(${p.id})">Add</button>
+    </div>`).join("") || "<p class='empty'>No products found.</p>";
+}
+
+function addToCart(id) { cart[id] = (cart[id] || 0) + 1; renderCart(); }
+
+function changeQty(id, delta) {
+  cart[id] = (cart[id] || 0) + delta;
+  if (cart[id] <= 0) delete cart[id];
+  renderCart();
+}
+
+function clearCart() { cart = {}; renderCart(); }
+
+function subtotal() {
+  return Object.entries(cart).reduce((sum, [id, qty]) => {
+    const p = PRODUCTS.find(x => x.id == id);
+    return sum + p.price * qty;
+  }, 0);
+}
+
+function renderCart() {
+  const box = document.getElementById("cartItems");
+  const ids = Object.keys(cart);
+  if (ids.length === 0) {
+    box.innerHTML = "<p class='empty'>Cart is empty.</p>";
+    document.getElementById("total").textContent = fmt(0);
+    return;
+  }
+  box.innerHTML = ids.map(id => {
+    const p = PRODUCTS.find(x => x.id == id);
+    return `<div class="row">
+      <span>${p.name}</span>
+      <span>
+        <button class="small" onclick="changeQty(${id}, -1)">-</button>
+        ${cart[id]}
+        <button class="small" onclick="changeQty(${id}, 1)">+</button>
+      </span>
+      <span>${fmt(p.price * cart[id])}</span>
+    </div>`;
+  }).join("") + `<div class="row"><span>Delivery</span><span></span><span>${fmt(DELIVERY_FEE)}</span></div>`;
+  document.getElementById("total").textContent = fmt(subtotal() + DELIVERY_FEE);
+}
+
+function sendOrder() {
+  const name = document.getElementById("custName").value.trim();
+  const phone = document.getElementById("custPhone").value.trim();
+  const place = document.getElementById("custPlace").value.trim();
+  if (Object.keys(cart).length === 0) return alert("Your cart is empty.");
+  if (!name || !phone || !place) return alert("Please fill in your name, phone and location.");
+
+  let msg = `*NEW ORDER - ${SHOP_NAME}*\n\n`;
+  for (const [id, qty] of Object.entries(cart)) {
+    const p = PRODUCTS.find(x => x.id == id);
+    msg += `${qty} x ${p.name} = ${fmt(p.price * qty)}\n`;
+  }
+  msg += `\nDelivery: ${fmt(DELIVERY_FEE)}`;
+  msg += `\n*TOTAL: ${fmt(subtotal() + DELIVERY_FEE)}*`;
+  msg += `\n\nName: ${name}\nPhone: ${phone}\nLocation: ${place}`;
+  window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`, "_blank");
+}
+
+document.getElementById("shopName").textContent = SHOP_NAME;
+document.getElementById("search").addEventListener("input", renderProducts);
+renderProducts();
+renderCart();
+</script>
+</body>
+</html>
